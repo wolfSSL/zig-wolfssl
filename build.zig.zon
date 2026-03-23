@@ -1,0 +1,14 @@
+.{
+    .name = .wolfssl_zig,
+    .version = "0.1.0",
+    .fingerprint = 0x91b48b1fd48b7e82,
+    .minimum_zig_version = "0.16.0-dev.2877+627f03af9",
+    .dependencies = .{},
+    .license = "MIT",
+    .copyright = "Copyright wolfSSL Inc.",
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
