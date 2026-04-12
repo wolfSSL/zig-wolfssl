@@ -108,7 +108,7 @@ src/
   tls/            -- TLS context, connection, session
   crypto/         -- Symmetric ciphers, hashes, MACs, asymmetric crypto
   x509/           -- Certificate parsing and verification
-  kdf/            -- HKDF, PBKDF2
+  kdf/            -- HKDF, PBKDF1, PBKDF2, scrypt
   random.zig      -- Secure RNG
 build.zig         -- Build system (pkg-config discovery, test setup)
 build.zig.zon     -- Package manifest (v0.2.0)
