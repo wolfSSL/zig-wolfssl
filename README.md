@@ -4,7 +4,7 @@ Idiomatic Zig bindings for wolfSSL and wolfCrypt.
 
 **License:** GPL-3.0 or commercial (wolfSSL Inc.)
 
-Links against a system-installed wolfSSL library via `pkg-config` and provides a native Zig API for TLS, cryptography, X.509 certificates, key derivation, and secure random number generation.
+Links against a system-installed wolfSSL library and provides a native Zig API for TLS, cryptography, X.509 certificates, key derivation, and secure random number generation.
 
 ## Features
 
@@ -24,7 +24,7 @@ Links against a system-installed wolfSSL library via `pkg-config` and provides a
 
 ## Prerequisites
 
-wolfSSL must be installed on the system and discoverable via `pkg-config`:
+wolfSSL must be installed on the system. The build locates it using (in priority order): the `-Dwolfssl-src=` build option, the `WOLFSSL_SRC` environment variable, or `pkg-config` as a fallback.
 
 ```bash
 cd ~/wolfssl
@@ -66,11 +66,22 @@ zig build
 zig build test
 ```
 
-To run tests that need wolfSSL test certificates:
+Some tests require wolfSSL's certificate files. The build locates the wolfSSL source tree (and its `certs/` directory) using (in priority order):
+
+1. `-Dwolfssl-src=<path>` build option
+2. `WOLFSSL_SRC` environment variable
+3. `pkg-config` heuristic (fallback for uninstalled source builds)
 
 ```bash
+# Using the build option
 zig build test -Dwolfssl-src=/path/to/wolfssl
+
+# Or via environment variable
+export WOLFSSL_SRC=/path/to/wolfssl
+zig build test
 ```
+
+If none of the above resolves, the build still succeeds — the cert-dependent tests fail at runtime with a file-not-found error rather than aborting the build.
 
 ## Usage
 
@@ -110,7 +121,7 @@ src/
   x509/           -- Certificate parsing and verification
   kdf/            -- HKDF, PBKDF1, PBKDF2, scrypt
   random.zig      -- Secure RNG
-build.zig         -- Build system (pkg-config discovery, test setup)
+build.zig         -- Build system (library discovery, test setup)
 build.zig.zon     -- Package manifest (v0.2.0)
 ```
 
