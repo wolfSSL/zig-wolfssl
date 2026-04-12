@@ -55,11 +55,34 @@ pub const TlsError = error{
     EccShared,
     NotCa,
     BadCertManager,
+    AsnNoSigner,
+    // 98d.5 — TLS handshake and record-layer errors
+    OcspRevoked,
+    CrlRevoked,
+    MaxChainDepth,
+    DecodeError,
+    UnknownSni,
+    KeyUsageSignature,
+    KeyUsageEncipher,
+    ExtKeyUsageAuth,
+    DhKeyTooSmall,
+    RsaKeyTooSmall,
+    EccKeyTooSmall,
+    InvalidTlsParam,
+    UnsupportedExtension,
+    UnsupportedVersion,
+    UnsupportedSuite,
+    MatchSuiteError,
+    SocketPeerClosed,
+    NoCert,
+    AppDataReady,
     Unexpected,
 };
 
 /// Errors from wolfCrypt cryptographic operations.
 pub const CryptoError = error{
+    /// Signature or MAC verification failed: the data or key did not match.
+    AuthenticationFailed,
     OutOfMemory,
     MpInit,
     MpRead,
@@ -105,6 +128,45 @@ pub const CryptoError = error{
     Pending,
     KeyExhausted,
     AesEaxAuth,
+    // 98d.1 — codes observed producing "unmapped" warnings in test suite
+    BadFuncArg,
+    AesGcmAuth,
+    AsnNoSigner,
+    MacCmpFailed,
+    // 98d.2 — signature verification and padding failures
+    SigVerify,
+    AsnSigConfirm,
+    EccBadArg,
+    EccInf,
+    BadPadding,
+    RsaPad,
+    PssSaltLen,
+    // 98d.3 — ASN/certificate parse and validation errors
+    AsnInput,
+    AsnSigHash,
+    AsnSigKey,
+    AsnDhKey,
+    AsnAltName,
+    AsnNoPemHeader,
+    AsnEccKey,
+    AsnCrlConfirm,
+    AsnOcspConfirm,
+    AsnNameInvalid,
+    AsnSelfSigned,
+    AsnDepth,
+    AsnLen,
+    // 98d.4 — operational/structural errors
+    NotCompiledIn,
+    BadAlign,
+    BadState,
+    SigType,
+    HashType,
+    MissingRng,
+    BadKeywrapAlg,
+    BadKeywrapIv,
+    MissingIv,
+    MissingKey,
+    BadLength,
     Unexpected,
 };
 
@@ -163,6 +225,27 @@ pub fn mapTlsError(ret: c_int) TlsError {
         c.ECC_SHARED_ERROR => TlsError.EccShared,
         c.NOT_CA_ERROR => TlsError.NotCa,
         c.BAD_CERT_MANAGER_ERROR => TlsError.BadCertManager,
+        c.ASN_NO_SIGNER_E => TlsError.AsnNoSigner,
+        // 98d.5 — TLS handshake and record-layer errors
+        c.OCSP_CERT_REVOKED => TlsError.OcspRevoked,
+        c.CRL_CERT_REVOKED => TlsError.CrlRevoked,
+        c.MAX_CHAIN_ERROR => TlsError.MaxChainDepth,
+        c.DECODE_E => TlsError.DecodeError,
+        c.UNKNOWN_SNI_HOST_NAME_E => TlsError.UnknownSni,
+        c.KEYUSE_SIGNATURE_E => TlsError.KeyUsageSignature,
+        c.KEYUSE_ENCIPHER_E => TlsError.KeyUsageEncipher,
+        c.EXTKEYUSE_AUTH_E => TlsError.ExtKeyUsageAuth,
+        c.DH_KEY_SIZE_E => TlsError.DhKeyTooSmall,
+        c.RSA_KEY_SIZE_E => TlsError.RsaKeyTooSmall,
+        c.ECC_KEY_SIZE_E => TlsError.EccKeyTooSmall,
+        c.INVALID_PARAMETER => TlsError.InvalidTlsParam,
+        c.UNSUPPORTED_EXTENSION => TlsError.UnsupportedExtension,
+        c.UNSUPPORTED_PROTO_VERSION => TlsError.UnsupportedVersion,
+        c.UNSUPPORTED_SUITE => TlsError.UnsupportedSuite,
+        c.MATCH_SUITE_ERROR => TlsError.MatchSuiteError,
+        c.SOCKET_PEER_CLOSED_E => TlsError.SocketPeerClosed,
+        c.NO_CERT_ERROR => TlsError.NoCert,
+        c.APP_DATA_READY => TlsError.AppDataReady,
         else => {
             log.warn("unmapped TLS error code: {d}", .{ret});
             return TlsError.Unexpected;
@@ -219,6 +302,51 @@ pub fn mapCryptoError(ret: c_int) CryptoError {
         c.BAD_MUTEX_E => CryptoError.BadMutex,
         c.WC_TIMEOUT_E => CryptoError.Timeout,
         c.WC_PENDING_E => CryptoError.Pending,
+        // pre-existing enum variants that lacked switch cases
+        c.KEY_EXHAUSTED_E => CryptoError.KeyExhausted,
+        c.AES_EAX_AUTH_E => CryptoError.AesEaxAuth,
+        // 98d.1 — codes observed producing "unmapped" warnings in test suite
+        c.BAD_FUNC_ARG => CryptoError.BadFuncArg,
+        c.AES_GCM_AUTH_E => CryptoError.AesGcmAuth,
+        c.ASN_NO_SIGNER_E => CryptoError.AsnNoSigner,
+        c.MAC_CMP_FAILED_E => CryptoError.MacCmpFailed,
+        // 98d.2 — signature verification and padding failures
+        // Note: SIG_VERIFY_E, ASN_SIG_CONFIRM_E, ECC_BAD_ARG_E also appear in
+        // isBadSignatureError; that check precedes mapCryptoError in verify paths,
+        // so these mappings handle the same codes from non-verify call sites.
+        c.SIG_VERIFY_E => CryptoError.SigVerify,
+        c.ASN_SIG_CONFIRM_E => CryptoError.AsnSigConfirm,
+        c.ECC_BAD_ARG_E => CryptoError.EccBadArg,
+        c.ECC_INF_E => CryptoError.EccInf,
+        c.BAD_PADDING_E => CryptoError.BadPadding,
+        c.RSA_PAD_E => CryptoError.RsaPad,
+        c.PSS_SALTLEN_E => CryptoError.PssSaltLen,
+        // 98d.3 — ASN/certificate parse and validation errors
+        c.ASN_INPUT_E => CryptoError.AsnInput,
+        c.ASN_SIG_HASH_E => CryptoError.AsnSigHash,
+        c.ASN_SIG_KEY_E => CryptoError.AsnSigKey,
+        c.ASN_DH_KEY_E => CryptoError.AsnDhKey,
+        c.ASN_ALT_NAME_E => CryptoError.AsnAltName,
+        c.ASN_NO_PEM_HEADER => CryptoError.AsnNoPemHeader,
+        c.ASN_ECC_KEY_E => CryptoError.AsnEccKey,
+        c.ASN_CRL_CONFIRM_E => CryptoError.AsnCrlConfirm,
+        c.ASN_OCSP_CONFIRM_E => CryptoError.AsnOcspConfirm,
+        c.ASN_NAME_INVALID_E => CryptoError.AsnNameInvalid,
+        c.ASN_SELF_SIGNED_E => CryptoError.AsnSelfSigned,
+        c.ASN_DEPTH_E => CryptoError.AsnDepth,
+        c.ASN_LEN_E => CryptoError.AsnLen,
+        // 98d.4 — operational/structural errors
+        c.NOT_COMPILED_IN => CryptoError.NotCompiledIn,
+        c.BAD_ALIGN_E => CryptoError.BadAlign,
+        c.BAD_STATE_E => CryptoError.BadState,
+        c.SIG_TYPE_E => CryptoError.SigType,
+        c.HASH_TYPE_E => CryptoError.HashType,
+        c.MISSING_RNG_E => CryptoError.MissingRng,
+        c.BAD_KEYWRAP_ALG_E => CryptoError.BadKeywrapAlg,
+        c.BAD_KEYWRAP_IV_E => CryptoError.BadKeywrapIv,
+        c.MISSING_IV => CryptoError.MissingIv,
+        c.MISSING_KEY => CryptoError.MissingKey,
+        c.BAD_LENGTH_E => CryptoError.BadLength,
         else => {
             log.warn("unmapped crypto error code: {d}", .{ret});
             return CryptoError.Unexpected;
@@ -232,10 +360,13 @@ pub inline fn checkCrypto(ret: c_int) CryptoError!void {
 }
 
 /// Returns true if the wolfCrypt error code indicates a mathematically
-/// invalid signature (as opposed to an operational error like OOM).
+/// invalid signature (as opposed to an operational error like OOM or bad args).
 /// Used by Ed25519/Ed448 verify to distinguish "bad sig" from "crypto engine broken."
+/// BAD_FUNC_ARG is intentionally excluded: it indicates a programming error
+/// (e.g. null pointer, wrong size) and must propagate as error.BadFuncArg, not
+/// be silently converted to error.AuthenticationFailed.
 pub fn isBadSignatureError(ret: c_int) bool {
-    inline for (.{ "SIG_VERIFY_E", "ASN_SIG_CONFIRM_E", "ECC_BAD_ARG_E", "BAD_FUNC_ARG" }) |name| {
+    inline for (.{ "SIG_VERIFY_E", "ASN_SIG_CONFIRM_E", "ECC_BAD_ARG_E" }) |name| {
         if (@hasDecl(c, name) and ret == @field(c, name)) return true;
     }
     return false;

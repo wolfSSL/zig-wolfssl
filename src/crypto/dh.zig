@@ -4,24 +4,27 @@ const errors = @import("../errors.zig");
 const random = @import("../random.zig");
 const opaque_alloc = @import("../opaque_alloc.zig");
 
-/// Diffie-Hellman key exchange.
-/// Embedded 512-byte key buffers are sized for FFDHE2048 (256-byte keys).
-/// FFDHE3072 requires 384-byte keys and FFDHE4096 requires 512-byte keys,
-/// so this struct only safely supports up to FFDHE4096. For larger groups,
-/// increase the buffer sizes.
+/// Diffie-Hellman key exchange using RFC 7919 named FFDHE groups.
+///
+/// Key sizes by group (those available in this build):
+///   FFDHE2048 → 256-byte keys/secrets
+///   FFDHE3072 → 384-byte keys/secrets
+///   FFDHE6144 → 768-byte keys/secrets
+///   FFDHE8192 → 1024-byte keys/secrets
+///
+/// Note: FFDHE4096 is absent — it requires wolfSSL built with HAVE_FFDHE_4096.
 ///
 /// WARNING: This struct embeds private key material. Do not copy it after
 /// calling `generateKeyPair()` — copies will not be securely zeroed on
 /// `deinit()`. Always pass by pointer, not by value.
 pub const DhKeyPair = struct {
     key: *c.DhKey,
-    priv_buf: [512]u8 = undefined,
-    pub_buf: [512]u8 = undefined,
+    priv_buf: [1024]u8 = undefined,
+    pub_buf: [1024]u8 = undefined,
     priv_len: usize = 0,
     pub_len: usize = 0,
 
-    /// Initialize DH with FFDHE2048 named group parameters.
-    pub fn initFfdhe2048() !DhKeyPair {
+    fn initFromParams(params: *const c.DhParams) !DhKeyPair {
         const key = try opaque_alloc.allocDhKey();
         errdefer opaque_alloc.freeDhKey(key);
 
@@ -29,19 +32,34 @@ pub const DhKeyPair = struct {
         if (ret != 0) return errors.mapCryptoError(ret);
         errdefer _ = c.wc_FreeDhKey(key);
 
-        const params = c.wc_Dh_ffdhe2048_Get();
-        ret = c.wc_DhSetKey_ex(
-            key,
-            params.*.p,
-            params.*.p_len,
-            params.*.g,
-            params.*.g_len,
-            null,
-            0,
-        );
+        ret = c.wc_DhSetKey_ex(key, params.p, params.p_len, params.g, params.g_len, null, 0);
         if (ret != 0) return errors.mapCryptoError(ret);
         return .{ .key = key };
     }
+
+    /// Initialize DH with FFDHE2048 named group parameters (RFC 7919 §A.1).
+    pub fn initFfdhe2048() !DhKeyPair {
+        return initFromParams(c.wc_Dh_ffdhe2048_Get());
+    }
+
+    /// Initialize DH with FFDHE3072 named group parameters (RFC 7919 §A.2).
+    pub fn initFfdhe3072() !DhKeyPair {
+        return initFromParams(c.wc_Dh_ffdhe3072_Get());
+    }
+
+    /// Initialize DH with FFDHE6144 named group parameters (RFC 7919 §A.4).
+    pub fn initFfdhe6144() !DhKeyPair {
+        return initFromParams(c.wc_Dh_ffdhe6144_Get());
+    }
+
+    /// Initialize DH with FFDHE8192 named group parameters (RFC 7919 §A.5).
+    pub fn initFfdhe8192() !DhKeyPair {
+        return initFromParams(c.wc_Dh_ffdhe8192_Get());
+    }
+
+    // Note: initFfdhe4096 is intentionally absent. FFDHE4096 requires
+    // wolfSSL to be configured with HAVE_FFDHE_4096, which is not enabled
+    // in this build. Add it here if your wolfSSL build includes HAVE_FFDHE_4096.
 
     pub fn deinit(self: *DhKeyPair) void {
         std.crypto.secureZero(u8, @as([]volatile u8, @volatileCast(&self.priv_buf)));
@@ -72,7 +90,9 @@ pub const DhKeyPair = struct {
     }
 
     /// Compute the shared secret with a peer's public key.
+    /// Returns error.UninitializedKeyPair if generateKeyPair() has not been called.
     pub fn sharedSecret(self: *DhKeyPair, peer_pub: []const u8, out: []u8) ![]u8 {
+        if (self.priv_len == 0) return error.UninitializedKeyPair;
         var out_len: c.word32 = @intCast(out.len);
         const ret = c.wc_DhAgree(
             self.key,
@@ -108,3 +128,25 @@ test "DH key agreement with FFDHE2048" {
 
     try std.testing.expectEqualSlices(u8, sa, sb);
 }
+
+test "DH key agreement with FFDHE3072" {
+    var rng = try random.SecureRng.init();
+    defer rng.deinit();
+
+    var alice = try DhKeyPair.initFfdhe3072();
+    defer alice.deinit();
+    try alice.generateKeyPair(&rng);
+
+    var bob = try DhKeyPair.initFfdhe3072();
+    defer bob.deinit();
+    try bob.generateKeyPair(&rng);
+
+    var secret_a: [384]u8 = undefined;
+    const sa = try alice.sharedSecret(bob.publicKeyBytes(), &secret_a);
+
+    var secret_b: [384]u8 = undefined;
+    const sb = try bob.sharedSecret(alice.publicKeyBytes(), &secret_b);
+
+    try std.testing.expectEqualSlices(u8, sa, sb);
+}
+

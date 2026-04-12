@@ -217,8 +217,7 @@ test "x509: notBefore returns a valid date string" {
     defer cert.deinit();
 
     var buf: [256]u8 = undefined;
-    const not_before_ptr = cert.notBefore(&buf) orelse return error.TestUnexpectedResult;
-    const not_before = std.mem.sliceTo(not_before_ptr, 0);
+    const not_before = cert.notBefore(&buf) orelse return error.TestUnexpectedResult;
 
     // Must be non-empty
     try std.testing.expect(not_before.len > 0);
@@ -258,8 +257,7 @@ test "x509: notAfter returns a valid date string" {
     defer cert.deinit();
 
     var buf: [256]u8 = undefined;
-    const not_after_ptr = cert.notAfter(&buf) orelse return error.TestUnexpectedResult;
-    const not_after = std.mem.sliceTo(not_after_ptr, 0);
+    const not_after = cert.notAfter(&buf) orelse return error.TestUnexpectedResult;
 
     // Must be non-empty
     try std.testing.expect(not_after.len > 0);
@@ -299,10 +297,8 @@ test "x509: notAfter is later than notBefore" {
 
     var before_buf: [256]u8 = undefined;
     var after_buf: [256]u8 = undefined;
-    const not_before_ptr = cert.notBefore(&before_buf) orelse return error.TestUnexpectedResult;
-    const not_after_ptr = cert.notAfter(&after_buf) orelse return error.TestUnexpectedResult;
-    const not_before = std.mem.sliceTo(not_before_ptr, 0);
-    const not_after = std.mem.sliceTo(not_after_ptr, 0);
+    const not_before = cert.notBefore(&before_buf) orelse return error.TestUnexpectedResult;
+    const not_after = cert.notAfter(&after_buf) orelse return error.TestUnexpectedResult;
 
     // The two date strings should be different (notBefore != notAfter)
     try std.testing.expect(!std.mem.eql(u8, not_before, not_after));
@@ -315,8 +311,8 @@ test "x509: Name.oneLine returns subject with wolfSSL content" {
     defer cert.deinit();
 
     const subj = cert.subject() orelse return error.TestUnexpectedResult;
-    const one_line_ptr = subj.oneLine() orelse return error.TestUnexpectedResult;
-    const one_line = std.mem.sliceTo(one_line_ptr, 0);
+    var one_line_buf: [256]u8 = undefined;
+    const one_line = subj.oneLine(&one_line_buf) orelse return error.TestUnexpectedResult;
 
     // Must be non-empty
     try std.testing.expect(one_line.len > 0);
@@ -332,8 +328,8 @@ test "x509: Name.oneLine returns issuer content" {
     defer cert.deinit();
 
     const iss = cert.issuer() orelse return error.TestUnexpectedResult;
-    const one_line_ptr = iss.oneLine() orelse return error.TestUnexpectedResult;
-    const one_line = std.mem.sliceTo(one_line_ptr, 0);
+    var one_line_buf: [256]u8 = undefined;
+    const one_line = iss.oneLine(&one_line_buf) orelse return error.TestUnexpectedResult;
 
     // Must be non-empty and contain meaningful content
     try std.testing.expect(one_line.len > 0);
@@ -346,6 +342,45 @@ test "x509: Name.oneLine returns issuer content" {
         }
     }
     try std.testing.expect(has_alpha);
+}
+
+test "x509: Name additional fields (ST, L, OU, email) from server-cert" {
+    ensureWolfInit();
+
+    var cert = try Certificate.fromFile(server_cert_pem);
+    defer cert.deinit();
+
+    const subj = cert.subject() orelse return error.TestUnexpectedResult;
+    var buf: [256]u8 = undefined;
+
+    // wolfSSL test server-cert: ST=Montana, L=Bozeman, OU=Support, email=info@wolfssl.com
+    const st = subj.stateOrProvince(&buf) orelse return error.TestUnexpectedResult;
+    try std.testing.expectEqualStrings("Montana", st);
+
+    const l = subj.locality(&buf) orelse return error.TestUnexpectedResult;
+    try std.testing.expectEqualStrings("Bozeman", l);
+
+    const ou = subj.organizationalUnit(&buf) orelse return error.TestUnexpectedResult;
+    try std.testing.expectEqualStrings("Support", ou);
+
+    const email = subj.emailAddress(&buf) orelse return error.TestUnexpectedResult;
+    try std.testing.expectEqualStrings("info@wolfssl.com", email);
+}
+
+test "x509: certVersion and serialNumber from server-cert" {
+    ensureWolfInit();
+
+    var cert = try Certificate.fromFile(server_cert_pem);
+    defer cert.deinit();
+
+    // wolfSSL test server-cert is X.509 v3
+    try std.testing.expectEqual(@as(?u8, 3), cert.certVersion());
+
+    // Serial number should be non-empty and start with a non-zero byte
+    var serial_buf: [64]u8 = undefined;
+    const serial = cert.serialNumber(&serial_buf) orelse return error.TestUnexpectedResult;
+    try std.testing.expect(serial.len > 0);
+    try std.testing.expect(serial[0] != 0);
 }
 
 // ============================================================
@@ -842,6 +877,136 @@ test "TLS: client-server handshake and data exchange" {
     server_thread.join();
 }
 
+test "TLS: peerCertificate returns server cert after handshake" {
+    if (comptime builtin.os.tag != .linux) return error.SkipZigTest;
+    ensureWolfInit();
+
+    var server_ctx = try Context.init(.{
+        .role = .server,
+        .cert_chain = .{ .file = server_cert_pem },
+        .private_key = .{ .file = server_key_pem },
+        .ca_certs = .none,
+        .verify_mode = .none,
+        .session_cache = false,
+    });
+    defer server_ctx.deinit();
+
+    var client_ctx = try Context.init(.{
+        .role = .client,
+        .ca_certs = .{ .file = ca_cert_pem },
+        .verify_mode = .verify_peer,
+        .session_cache = false,
+    });
+    defer client_ctx.deinit();
+
+    const srv = try createListeningSocket();
+    defer _ = libc.close(srv.fd);
+
+    const ServerThread = struct {
+        fn run(srv_ctx: *Context, srv_fd: i32) void {
+            const client_fd = acceptConnection(srv_fd) catch return;
+            defer _ = libc.close(client_fd);
+            var conn = srv_ctx.connection() catch return;
+            defer conn.deinit();
+            conn.attach(client_fd) catch return;
+            conn.handshake() catch return;
+            conn.close();
+        }
+    };
+
+    const server_thread = try std.Thread.spawn(.{}, ServerThread.run, .{ &server_ctx, srv.fd });
+
+    const client_fd = try connectToLocalhost(srv.port);
+    defer _ = libc.close(client_fd);
+
+    var client_conn = try client_ctx.connection();
+    defer client_conn.deinit();
+
+    try client_conn.attach(client_fd);
+    try client_conn.handshake();
+
+    // peerCertificate() should return the server's certificate
+    var peer_cert = client_conn.peerCertificate() orelse return error.TestUnexpectedResult;
+    defer peer_cert.deinit();
+
+    // Verify it's the expected server cert by checking CN and O fields
+    const subj = peer_cert.subject() orelse return error.TestUnexpectedResult;
+    var buf: [256]u8 = undefined;
+    const cn = subj.commonName(&buf) orelse return error.TestUnexpectedResult;
+    try std.testing.expect(std.mem.indexOf(u8, cn, "wolfssl") != null);
+    const org = subj.organization(&buf) orelse return error.TestUnexpectedResult;
+    try std.testing.expectEqualStrings("wolfSSL", org);
+
+    client_conn.close();
+    server_thread.join();
+}
+
+test "TLS: exportKeyingMaterial produces equal output on both sides" {
+    if (comptime builtin.os.tag != .linux) return error.SkipZigTest;
+    ensureWolfInit();
+
+    var server_ctx = try Context.init(.{
+        .role = .server,
+        .cert_chain = .{ .file = server_cert_pem },
+        .private_key = .{ .file = server_key_pem },
+        .ca_certs = .none,
+        .verify_mode = .none,
+        .session_cache = false,
+    });
+    defer server_ctx.deinit();
+
+    var client_ctx = try Context.init(.{
+        .role = .client,
+        .ca_certs = .{ .file = ca_cert_pem },
+        .verify_mode = .verify_peer,
+        .session_cache = false,
+    });
+    defer client_ctx.deinit();
+
+    const srv = try createListeningSocket();
+    defer _ = libc.close(srv.fd);
+
+    const Shared = struct {
+        server_km: [32]u8 = undefined,
+        server_ok: bool = false,
+    };
+    var shared = Shared{};
+
+    const ServerThread = struct {
+        fn run(srv_ctx: *Context, srv_fd: i32, out: *Shared) void {
+            const client_fd = acceptConnection(srv_fd) catch return;
+            defer _ = libc.close(client_fd);
+            var conn = srv_ctx.connection() catch return;
+            defer conn.deinit();
+            conn.attach(client_fd) catch return;
+            conn.handshake() catch return;
+            conn.exportKeyingMaterial(&out.server_km, "EXPORTER-wolfssl-zig-test", null) catch return;
+            out.server_ok = true;
+            conn.close();
+        }
+    };
+
+    const server_thread = try std.Thread.spawn(.{}, ServerThread.run, .{ &server_ctx, srv.fd, &shared });
+
+    const client_fd = try connectToLocalhost(srv.port);
+    defer _ = libc.close(client_fd);
+
+    var client_conn = try client_ctx.connection();
+    defer client_conn.deinit();
+
+    try client_conn.attach(client_fd);
+    try client_conn.handshake();
+
+    var client_km: [32]u8 = undefined;
+    try client_conn.exportKeyingMaterial(&client_km, "EXPORTER-wolfssl-zig-test", null);
+
+    client_conn.close();
+    server_thread.join();
+
+    try std.testing.expect(shared.server_ok);
+    try std.testing.expectEqualSlices(u8, &shared.server_km, &client_km);
+}
+
 test "TLS: handshake fails with wrong CA (trust mismatch)" {
     if (comptime builtin.os.tag != .linux) return error.SkipZigTest;
     ensureWolfInit();
@@ -1111,8 +1276,7 @@ test "ECC: signature verification fails with wrong key" {
     const sig = try kp1.sign(&msg_hash, &sig_buf, &rng);
 
     // Verify with the WRONG key -- should not validate
-    const valid = try kp2.verify(&msg_hash, sig);
-    try std.testing.expect(!valid);
+    try std.testing.expectError(error.AuthenticationFailed, kp2.verify(&msg_hash, sig));
 }
 
 test "Ed25519: signature is deterministic" {
@@ -1165,7 +1329,7 @@ test "X25519: shared secret is not all zeros" {
     var bob = try X25519.KeyPair.generate(&rng);
     defer bob.deinit();
 
-    const secret = try alice.sharedSecret(&bob);
+    const secret = try alice.sharedSecret(bob.publicKey());
 
     var all_zero = true;
     for (secret) |b| {
@@ -1186,8 +1350,8 @@ test "X25519: shared secret is symmetric" {
     var bob = try X25519.KeyPair.generate(&rng);
     defer bob.deinit();
 
-    const secret_ab = try alice.sharedSecret(&bob);
-    const secret_ba = try bob.sharedSecret(&alice);
+    const secret_ab = try alice.sharedSecret(bob.publicKey());
+    const secret_ba = try bob.sharedSecret(alice.publicKey());
 
     try std.testing.expectEqualSlices(u8, &secret_ab, &secret_ba);
 }

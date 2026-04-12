@@ -17,12 +17,16 @@ const c = @import("c.zig").c;
 // Extern declarations for the C sizeof helper functions.
 extern fn wolfssl_zig_sizeof_Hmac() usize;
 extern fn wolfssl_zig_sizeof_DhKey() usize;
+extern fn wolfssl_zig_sizeof_wc_Sha() usize;
 extern fn wolfssl_zig_sizeof_wc_Sha256() usize;
 extern fn wolfssl_zig_sizeof_wc_Sha384() usize;
 extern fn wolfssl_zig_sizeof_wc_Sha512() usize;
 extern fn wolfssl_zig_sizeof_wc_Sha3() usize;
 extern fn wolfssl_zig_sizeof_wc_Md5() usize;
+extern fn wolfssl_zig_sizeof_Blake2b() usize;
+extern fn wolfssl_zig_sizeof_Blake2s() usize;
 extern fn wolfssl_zig_sizeof_ed448_key() usize;
+extern fn wolfssl_zig_sizeof_curve448_key() usize;
 
 /// Allocate an opaque C type using libc malloc with the exact size from C.
 /// Returns a properly-typed pointer.
@@ -49,6 +53,14 @@ pub fn allocDhKey() !*c.DhKey {
 }
 
 pub fn freeDhKey(ptr: *c.DhKey) void {
+    freeOpaque(ptr);
+}
+
+pub fn allocSha() !*c.wc_Sha {
+    return allocOpaque(c.wc_Sha, wolfssl_zig_sizeof_wc_Sha());
+}
+
+pub fn freeSha(ptr: *c.wc_Sha) void {
     freeOpaque(ptr);
 }
 
@@ -92,10 +104,34 @@ pub fn freeMd5(ptr: *c.wc_Md5) void {
     freeOpaque(ptr);
 }
 
+pub fn allocBlake2b() !*c.Blake2b {
+    return allocOpaque(c.Blake2b, wolfssl_zig_sizeof_Blake2b());
+}
+
+pub fn freeBlake2b(ptr: *c.Blake2b) void {
+    freeOpaque(ptr);
+}
+
+pub fn allocBlake2s() !*c.Blake2s {
+    return allocOpaque(c.Blake2s, wolfssl_zig_sizeof_Blake2s());
+}
+
+pub fn freeBlake2s(ptr: *c.Blake2s) void {
+    freeOpaque(ptr);
+}
+
 pub fn allocEd448() !*c.ed448_key {
     return allocOpaque(c.ed448_key, wolfssl_zig_sizeof_ed448_key());
 }
 
 pub fn freeEd448(ptr: *c.ed448_key) void {
+    freeOpaque(ptr);
+}
+
+pub fn allocCurve448() !*c.curve448_key {
+    return allocOpaque(c.curve448_key, wolfssl_zig_sizeof_curve448_key());
+}
+
+pub fn freeCurve448(ptr: *c.curve448_key) void {
     freeOpaque(ptr);
 }

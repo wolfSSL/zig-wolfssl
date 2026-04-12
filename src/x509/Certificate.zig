@@ -38,6 +38,7 @@ pub const Certificate = struct {
     }
 
     /// Wrap a borrowed X509 pointer (does not free on deinit).
+    /// For use with wolfssl.ffi: pass a WOLFSSL_X509* obtained from the raw C API.
     pub fn fromBorrowed(x509: *c.WOLFSSL_X509) Certificate {
         return .{ .x509 = x509, .owned = false };
     }
@@ -61,21 +62,40 @@ pub const Certificate = struct {
     }
 
     /// Get the not-before time as a string.
-    /// Writes into the caller-provided buffer and returns a sentinel-terminated slice,
-    /// or null if the time is unavailable.
-    pub fn notBefore(self: *const Certificate, buf: []u8) ?[*:0]const u8 {
+    /// Writes into the caller-provided buffer and returns a slice, or null if unavailable.
+    pub fn notBefore(self: *const Certificate, buf: []u8) ?[]const u8 {
         const asn_time = c.wolfSSL_X509_get_notBefore(self.x509) orelse return null;
         if (buf.len == 0) return null;
-        return c.wolfSSL_ASN1_TIME_to_string(asn_time, buf.ptr, @intCast(buf.len));
+        const s = c.wolfSSL_ASN1_TIME_to_string(asn_time, buf.ptr, @intCast(buf.len)) orelse return null;
+        return std.mem.span(s);
     }
 
     /// Get the not-after time as a string.
-    /// Writes into the caller-provided buffer and returns a sentinel-terminated slice,
-    /// or null if the time is unavailable.
-    pub fn notAfter(self: *const Certificate, buf: []u8) ?[*:0]const u8 {
+    /// Writes into the caller-provided buffer and returns a slice, or null if unavailable.
+    pub fn notAfter(self: *const Certificate, buf: []u8) ?[]const u8 {
         const asn_time = c.wolfSSL_X509_get_notAfter(self.x509) orelse return null;
         if (buf.len == 0) return null;
-        return c.wolfSSL_ASN1_TIME_to_string(asn_time, buf.ptr, @intCast(buf.len));
+        const s = c.wolfSSL_ASN1_TIME_to_string(asn_time, buf.ptr, @intCast(buf.len)) orelse return null;
+        return std.mem.span(s);
+    }
+
+    /// Get the certificate version: 1, 2, or 3 (X.509 versions).
+    /// wolfSSL returns 0-based index (0=v1, 1=v2, 2=v3); this returns the human-readable number.
+    /// Returns null if the version field is unavailable or outside the expected range.
+    pub fn certVersion(self: *const Certificate) ?u8 {
+        const v = c.wolfSSL_X509_get_version(self.x509);
+        if (v < 0) return null;
+        return std.math.cast(u8, v + 1) orelse null;
+    }
+
+    /// Get the serial number as a byte slice written into `buf`.
+    /// Returns null if the serial number is unavailable or `buf` is too small.
+    pub fn serialNumber(self: *const Certificate, buf: []u8) ?[]u8 {
+        var sz: c_int = @intCast(buf.len);
+        // wolfSSL_X509_get_serial_number returns WOLFSSL_SUCCESS (1) on success.
+        const ret = c.wolfSSL_X509_get_serial_number(self.x509, buf.ptr, &sz);
+        if (ret != c.WOLFSSL_SUCCESS) return null;
+        return buf[0..@intCast(sz)];
     }
 };
 

@@ -32,15 +32,18 @@ pub const c = @cImport({
     @cInclude("wolfssl/wolfcrypt/sha512.h");
     @cInclude("wolfssl/wolfcrypt/sha3.h");
     @cInclude("wolfssl/wolfcrypt/hash.h");
+    @cInclude("wolfssl/wolfcrypt/blake2.h");
 
     // MAC
     @cInclude("wolfssl/wolfcrypt/hmac.h");
+    @cInclude("wolfssl/wolfcrypt/cmac.h");
 
     // Asymmetric crypto
     @cInclude("wolfssl/wolfcrypt/rsa.h");
     @cInclude("wolfssl/wolfcrypt/ecc.h");
     @cInclude("wolfssl/wolfcrypt/ed25519.h");
     @cInclude("wolfssl/wolfcrypt/ed448.h");
+    @cInclude("wolfssl/wolfcrypt/curve448.h");
     @cInclude("wolfssl/wolfcrypt/curve25519.h");
     @cInclude("wolfssl/wolfcrypt/dh.h");
 

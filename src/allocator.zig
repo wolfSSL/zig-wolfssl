@@ -135,11 +135,18 @@ pub const SecureAllocator = struct {
     }
 
     fn secureRemap(ctx: *anyopaque, memory: []u8, alignment: std.mem.Alignment, new_len: usize, ret_addr: usize) ?[*]u8 {
-        const self: *SecureAllocator = @ptrCast(@alignCast(ctx));
-        // If shrinking, zero the tail before remapping
-        if (new_len < memory.len) {
-            std.crypto.secureZero(u8, @as([]volatile u8, @volatileCast(memory[new_len..])));
-        }
-        return self.backing.rawRemap(memory, alignment, new_len, ret_addr);
+        _ = ctx;
+        _ = memory;
+        _ = alignment;
+        _ = new_len;
+        _ = ret_addr;
+        // Always return null so the Allocator interface falls back to the
+        // alloc+copy+secureFree path.  If we delegated to backing.rawRemap,
+        // a growing remap that moves the allocation would have the backing
+        // allocator free the old buffer through its own (non-zeroing) free
+        // path, silently leaking the sensitive data that was in that buffer.
+        // Returning null is the only way to guarantee secureFree is called
+        // on every released buffer.
+        return null;
     }
 };

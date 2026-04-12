@@ -18,6 +18,10 @@ pub const Session = struct {
     }
 
     pub fn deinit(self: *Session) void {
+        // wolfSSL_SESSION_free → wolfSSL_FreeSession, which calls:
+        //   ForceZero(session->masterSecret, SECRET_LEN)  (ssl_sess.c:4148)
+        //   ForceZero(session->sessionID, ID_LEN)         (ssl_sess.c:4150)
+        // Session key material is zeroed before the memory is freed.
         c.wolfSSL_SESSION_free(self.session);
     }
 };

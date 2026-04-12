@@ -4,8 +4,15 @@ const errors = @import("../errors.zig");
 const Context = @import("Context.zig").Context;
 const Config = @import("Config.zig").Config;
 const nullTerminate = @import("../null_terminate.zig").nullTerminate;
+const Certificate = @import("../x509/Certificate.zig").Certificate;
 
 /// A TLS connection wrapping a WOLFSSL object.
+///
+/// Lifetime: Connection may safely outlive the Context it was created from.
+/// wolfSSL_new (via InitSSL, internal.c:7008) calls wolfSSL_CTX_up_ref, so the
+/// underlying WOLFSSL_CTX is reference-counted and is only freed when the last
+/// WOLFSSL using it is freed. Context.deinit() is therefore safe to call before
+/// Connection.deinit().
 pub const Connection = struct {
     ssl: *c.WOLFSSL,
 
@@ -16,6 +23,7 @@ pub const Connection = struct {
         SetAlpnFailed,
         SetHostNameFailed,
         BufferOverflow,
+        ExportFailed,
     };
 
     pub fn init(ctx: *Context) ConnectionError!Connection {
@@ -116,18 +124,60 @@ pub const Connection = struct {
     }
 
     /// Graceful TLS shutdown.
+    /// The return value of wolfSSL_shutdown is discarded: on non-blocking sockets
+    /// it may return WANT_READ/WANT_WRITE, but we have no retry loop here and TCP
+    /// teardown will flush/discard the unfinished close_notify. This is the
+    /// standard half-close-and-drop pattern for TLS over blocking sockets; callers
+    /// that need bidirectional close_notify exchange should call shutdown in a loop.
     pub fn close(self: *Connection) void {
         _ = c.wolfSSL_shutdown(self.ssl);
     }
 
-    /// Get the negotiated cipher suite name.
-    pub fn cipherSuite(self: *const Connection) ?[*:0]const u8 {
-        return c.wolfSSL_get_cipher_name(self.ssl);
+    /// Return the peer's certificate after a successful handshake.
+    /// Returns null if the peer presented no certificate (e.g. server-only TLS
+    /// with no client authentication, and called on the server side).
+    ///
+    /// OWNERSHIP: wolfSSL_get_peer_certificate returns an owned duplicate; the
+    /// returned Certificate has owned=true and must have deinit() called on it.
+    pub fn peerCertificate(self: *Connection) ?Certificate {
+        const x509 = c.wolfSSL_get_peer_certificate(self.ssl) orelse return null;
+        return Certificate{ .x509 = x509, .owned = true };
     }
 
-    /// Get the TLS version string.
-    pub fn version(self: *const Connection) ?[*:0]const u8 {
-        return c.wolfSSL_get_version(self.ssl);
+    /// Export keying material per RFC 5705 (TLS exporters).
+    /// Used by protocols like DTLS-SRTP, WebRTC, EAP-TLS.
+    /// `context` may be null (set use_context=0 in that case).
+    pub fn exportKeyingMaterial(self: *Connection, out: []u8, label: []const u8, context: ?[]const u8) !void {
+        const use_ctx: c_int = if (context != null) 1 else 0;
+        const ctx_ptr = if (context) |ctx| ctx.ptr else null;
+        const ctx_len: usize = if (context) |ctx| ctx.len else 0;
+        const ret = c.wolfSSL_export_keying_material(
+            self.ssl,
+            out.ptr,
+            out.len,
+            label.ptr,
+            label.len,
+            ctx_ptr,
+            ctx_len,
+            use_ctx,
+        );
+        if (ret != c.WOLFSSL_SUCCESS) return error.ExportFailed;
+    }
+
+    /// Get the negotiated cipher suite name.
+    /// The returned slice points into wolfSSL's internal string table (static storage).
+    /// It is valid for the lifetime of the process and does not need to be freed or copied.
+    pub fn cipherSuite(self: *const Connection) ?[]const u8 {
+        const s = c.wolfSSL_get_cipher_name(self.ssl) orelse return null;
+        return std.mem.span(s);
+    }
+
+    /// Get the TLS version string (e.g. "TLSv1.3").
+    /// The returned slice points into wolfSSL's internal string table (static storage).
+    /// It is valid for the lifetime of the process and does not need to be freed or copied.
+    pub fn version(self: *const Connection) ?[]const u8 {
+        const s = c.wolfSSL_get_version(self.ssl) orelse return null;
+        return std.mem.span(s);
     }
 
     pub const ReadError = error{ WouldBlock, ConnectionReset };

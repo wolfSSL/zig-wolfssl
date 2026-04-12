@@ -15,7 +15,7 @@
 //! ```
 
 const std = @import("std");
-pub const c = @import("c.zig").c;
+const c = @import("c.zig").c;
 pub const errors = @import("errors.zig");
 pub const alloc = @import("allocator.zig");
 
@@ -36,8 +36,10 @@ pub const crypto = struct {
     pub const ed25519 = @import("crypto/ed25519.zig");
     pub const ed448 = @import("crypto/ed448.zig");
     pub const curve25519 = @import("crypto/curve25519.zig");
+    pub const x448 = @import("crypto/x448.zig");
     pub const dh = @import("crypto/dh.zig");
     pub const hmac = @import("crypto/hmac.zig");
+    pub const cmac = @import("crypto/cmac.zig");
     pub const hash = @import("crypto/hash.zig");
 };
 
@@ -52,7 +54,9 @@ pub const x509 = struct {
 // -- KDF --
 pub const kdf = struct {
     pub const hkdf = @import("kdf/hkdf.zig");
+    pub const pbkdf1 = @import("kdf/pbkdf1.zig");
     pub const pbkdf2 = @import("kdf/pbkdf2.zig");
+    pub const scrypt = @import("kdf/scrypt.zig");
 };
 
 // -- Random --
@@ -68,7 +72,7 @@ pub fn init() !void {
 
 /// Initialize with a custom Zig allocator bridged into wolfSSL.
 ///
-/// Note: Some opaque wolfCrypt types — hash states, HMAC, DH, and Ed448 — are
+/// Note: Some opaque wolfCrypt types — hash states, HMAC, DH, Ed448, and Curve448 — are
 /// allocated via libc `malloc` rather than through this allocator bridge. This is
 /// because wolfCrypt does not provide `wc_*_new` / `wc_*_delete` functions for
 /// those types, so the Zig bindings fall back to `@cImport`-provided `malloc`/`free`.
@@ -82,11 +86,23 @@ pub fn deinit() void {
     _ = c.wolfSSL_Cleanup();
 }
 
+// -- FFI escape hatch --
+//
+// Direct access to the raw wolfSSL/wolfCrypt C API.
+// Use this only when the Zig wrappers above do not cover your use case
+// (e.g. DTLS, post-quantum, PKCS#12, certificate generation, hardware backends).
+//
+// This namespace is NOT part of the stable API. wolfSSL may rename, remove,
+// or change the signatures of C functions across releases, and those changes
+// will not be reflected in this library's semver version.
+pub const ffi = @import("c.zig").c;
+
 // -- Pull in all tests from submodules --
 test {
     _ = random;
     _ = crypto.hash;
     _ = crypto.hmac;
+    _ = crypto.cmac;
     _ = crypto.aes;
     _ = crypto.chacha;
     _ = crypto.rsa;
@@ -94,9 +110,12 @@ test {
     _ = crypto.ed25519;
     _ = crypto.ed448;
     _ = crypto.curve25519;
+    _ = crypto.x448;
     _ = crypto.dh;
     _ = kdf.hkdf;
+    _ = kdf.pbkdf1;
     _ = kdf.pbkdf2;
+    _ = kdf.scrypt;
     _ = @import("tests.zig");
 }
 

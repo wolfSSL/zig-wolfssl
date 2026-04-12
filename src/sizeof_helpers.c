@@ -15,18 +15,25 @@
 #include <wolfssl/wolfcrypt/types.h>
 #include <wolfssl/wolfcrypt/hmac.h>
 #include <wolfssl/wolfcrypt/dh.h>
+#include <wolfssl/wolfcrypt/sha.h>
 #include <wolfssl/wolfcrypt/sha256.h>
 #include <wolfssl/wolfcrypt/sha512.h>
 #include <wolfssl/wolfcrypt/sha3.h>
 #include <wolfssl/wolfcrypt/md5.h>
+#include <wolfssl/wolfcrypt/blake2.h>
 #include <wolfssl/wolfcrypt/ed448.h>
+#include <wolfssl/wolfcrypt/curve448.h>
 #include <stddef.h>
 
 size_t wolfssl_zig_sizeof_Hmac(void) { return sizeof(Hmac); }
 size_t wolfssl_zig_sizeof_DhKey(void) { return sizeof(DhKey); }
+size_t wolfssl_zig_sizeof_wc_Sha(void) { return sizeof(wc_Sha); }
 size_t wolfssl_zig_sizeof_wc_Sha256(void) { return sizeof(wc_Sha256); }
 size_t wolfssl_zig_sizeof_wc_Sha384(void) { return sizeof(wc_Sha384); }
 size_t wolfssl_zig_sizeof_wc_Sha512(void) { return sizeof(wc_Sha512); }
 size_t wolfssl_zig_sizeof_wc_Sha3(void) { return sizeof(wc_Sha3); }
 size_t wolfssl_zig_sizeof_wc_Md5(void) { return sizeof(wc_Md5); }
+size_t wolfssl_zig_sizeof_Blake2b(void) { return sizeof(Blake2b); }
+size_t wolfssl_zig_sizeof_Blake2s(void) { return sizeof(Blake2s); }
 size_t wolfssl_zig_sizeof_ed448_key(void) { return sizeof(ed448_key); }
+size_t wolfssl_zig_sizeof_curve448_key(void) { return sizeof(curve448_key); }

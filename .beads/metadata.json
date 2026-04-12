@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "wolfssl_zig",
+  "project_id": "56db4c47-aa76-4901-ba04-d3292231dd6a"
+}
