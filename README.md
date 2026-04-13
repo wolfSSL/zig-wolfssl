@@ -1,4 +1,4 @@
-# wolfssl-zig
+# zig-wolfssl
 
 Idiomatic Zig bindings for wolfSSL and wolfCrypt.
 
@@ -127,7 +127,7 @@ build.zig.zon     -- Package manifest (v0.2.0)
 
 ## Commercial Support and Licensing
 
-wolfSSL Inc. provides commercial support, consulting, integration services, and NRE for wolfssl-zig and for the wolfSSL ecosystem (wolfCrypt, wolfHSM, wolfProvider) that underlies it. Commercial licenses for wolfSSL are also available for deployments where the GPL-3.0 copyleft terms are not acceptable.
+wolfSSL Inc. provides commercial support, consulting, integration services, and NRE for zig-wolfssl and for the wolfSSL ecosystem (wolfCrypt, wolfHSM, wolfProvider) that underlies it. Commercial licenses for wolfSSL are also available for deployments where the GPL-3.0 copyleft terms are not acceptable.
 
 | Need | Contact |
 |------|---------|
@@ -139,7 +139,7 @@ wolfSSL Inc. provides commercial support, consulting, integration services, and 
 
 ## License
 
-wolfssl-zig is copyright (C) 2026 wolfSSL Inc. and is licensed under the GNU General Public License v3.0 (GPL-3.0). See
+zig-wolfssl is copyright (C) 2026 wolfSSL Inc. and is licensed under the GNU General Public License v3.0 (GPL-3.0). See
 [https://www.gnu.org/licenses/gpl-3.0.html](https://www.gnu.org/licenses/gpl-3.0.html).
 
 **Commercial** -- if the GPL-3.0 copyleft terms are not acceptable for your
@@ -150,7 +150,7 @@ Contact [licensing@wolfssl.com](mailto:licensing@wolfssl.com) or
 
 **wolfSSL / wolfCrypt** (required dependency): the same dual-license applies --
 GPL-3.0 for open-source use, or a commercial license from wolfSSL Inc. for
-proprietary deployments. Distributing a product that links wolfssl-zig against
+proprietary deployments. Distributing a product that links zig-wolfssl against
 wolfSSL under GPL-3.0 subjects the combined work to GPL-3.0 copyleft.
 
 **FIPS 140-3**: wolfCrypt holds a current FIPS 140-3 certificate (#4718).

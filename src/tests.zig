@@ -1,4 +1,4 @@
-//! Comprehensive tests for wolfssl-zig modules that previously had no test coverage.
+//! Comprehensive tests for zig-wolfssl modules that previously had no test coverage.
 //! Covers: X.509, CertManager, TLS Context/Connection, crypto edge cases, KDF, error mapping.
 
 const std = @import("std");
@@ -980,7 +980,7 @@ test "TLS: exportKeyingMaterial produces equal output on both sides" {
             defer conn.deinit();
             conn.attach(client_fd) catch return;
             conn.handshake() catch return;
-            conn.exportKeyingMaterial(&out.server_km, "EXPORTER-wolfssl-zig-test", null) catch return;
+            conn.exportKeyingMaterial(&out.server_km, "EXPORTER-zig-wolfssl-test", null) catch return;
             out.server_ok = true;
             conn.close();
         }
@@ -998,7 +998,7 @@ test "TLS: exportKeyingMaterial produces equal output on both sides" {
     try client_conn.handshake();
 
     var client_km: [32]u8 = undefined;
-    try client_conn.exportKeyingMaterial(&client_km, "EXPORTER-wolfssl-zig-test", null);
+    try client_conn.exportKeyingMaterial(&client_km, "EXPORTER-zig-wolfssl-test", null);
 
     client_conn.close();
     server_thread.join();

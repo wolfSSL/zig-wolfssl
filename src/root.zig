@@ -1,4 +1,4 @@
-//! wolfssl-zig: Idiomatic Zig bindings for wolfSSL / wolfCrypt.
+//! zig-wolfssl: Idiomatic Zig bindings for wolfSSL / wolfCrypt.
 //!
 //! Provides:
 //!  - `tls`: TLS client/server connections (Context, Connection, Session)

@@ -19,7 +19,7 @@ pub fn build(b: *std.Build) void {
     // -- Library artifact (for consumers who want a .a / .so) --
     const lib = b.addLibrary(.{
         .linkage = .static,
-        .name = "wolfssl-zig",
+        .name = "zig-wolfssl",
         .root_module = createWolfSslModule(b, target, optimize, wolfssl_src),
     });
     b.installArtifact(lib);
